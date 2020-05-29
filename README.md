@@ -1,2 +1,2 @@
-# ds_projects_public
-contain personal data science projects
+# DS personal projects
+This repo contains my personal data science projects for learning and practice
