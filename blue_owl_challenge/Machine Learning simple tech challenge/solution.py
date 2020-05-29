@@ -89,10 +89,7 @@ def data_preprocessing(data, use_scale=False, scale=None, onehot=True):
 
 # -
 
-train = data_preprocessing(train_df, use_scale=True, scale=MinMaxScaler())
-train.head()
-
-train = data_preprocessing(train_df, use_scale=True, scale=MinMaxScaler(), onehot=False)
+train = data_preprocessing(train_df, use_scale=True, scale=MinMaxScaler(), onehot=True)
 train.head()
 
 train.hist(figsize=(12,8))
@@ -106,7 +103,6 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import cross_val_score
-from xgboost import XGBClassifier
 
 X = train.drop('outcome', axis=1)
 y = train['outcome']
@@ -147,9 +143,6 @@ print(f"scores:{cv_score}, \n mean:{cv_score.mean()}")
 cv_score = cross_val_score(LinearDiscriminantAnalysis(), X, y, scoring='roc_auc', cv=5)
 print(f"scores:{cv_score}, \n mean:{cv_score.mean()}")
 
-cv_score = cross_val_score(XGBClassifier(n_estimators=500, random_state=42), X, y, scoring='roc_auc', cv=5)
-print(f"scores:{cv_score}, \n mean:{cv_score.mean()}")
-
 # **observation**: 
 # - lr is sensitive to feature scaling, rf is not so much
 # - minmax scaling is better
@@ -157,21 +150,21 @@ print(f"scores:{cv_score}, \n mean:{cv_score.mean()}")
 
 # # Feature engineering
 
-train = data_preprocessing(train_df, use_scale=False, scale=MinMaxScaler())
-train['cost/driver'] = train['cost_of_ad']/train['n_drivers']
-train['cost/vehicle'] = train['cost_of_ad']/train['n_vehicles']
-train['income/driver'] = train['income']/train['n_drivers']
-train['income/vehicle'] = train['income']/train['n_vehicles']
-train['vehicle/driver'] = train['n_vehicles']/train['n_drivers']
-train.head()
+train_more_features = data_preprocessing(train_df, use_scale=False, scale=MinMaxScaler())
+train_more_features['cost/driver'] = train_more_features['cost_of_ad']/train_more_features['n_drivers']
+train_more_features['cost/vehicle'] = train_more_features['cost_of_ad']/train_more_features['n_vehicles']
+train_more_features['income/driver'] = train_more_features['income']/train_more_features['n_drivers']
+train_more_features['income/vehicle'] = train_more_features['income']/train_more_features['n_vehicles']
+train_more_features['vehicle/driver'] = train_more_features['n_vehicles']/train_more_features['n_drivers']
+train_more_features.head()
 
 num_features = [0,1,2,3,4,5,-5,-4,-3,-2,-1]
 scale = MinMaxScaler()
-train.iloc[:, num_features] = pd.DataFrame(scale.fit_transform(train.iloc[:,num_features]), columns = train.iloc[:,num_features].columns)
-train.head()
+train_more_features.iloc[:, num_features] = pd.DataFrame(scale.fit_transform(train_more_features.iloc[:,num_features]), columns = train_more_features.iloc[:,num_features].columns)
+train_more_features.head()
 
-X = train.drop('outcome', axis=1)
-y = train['outcome']
+X = train_more_features.drop('outcome', axis=1)
+y = train_more_features['outcome']
 
 cv_score = cross_val_score(LogisticRegression(),X, y, scoring='roc_auc', cv=5)
 print(f"scores:{cv_score}, \n mean:{cv_score.mean()}")
@@ -182,11 +175,8 @@ print(f"scores:{cv_score}, \n mean:{cv_score.mean()}")
 cv_score = cross_val_score(LinearDiscriminantAnalysis(),X, y, scoring='roc_auc', cv=5)
 print(f"scores:{cv_score}, \n mean:{cv_score.mean()}")
 
-cv_score = cross_val_score(XGBClassifier(n_estimators=14, learning_rate=0.3), X, y, scoring='roc_auc', cv=5)
-print(f"scores:{cv_score}, \n mean:{cv_score.mean()}")
-
 # **observation**: 
-# - the several engieered features are effective to lr
+# - several engieered features are effective to lr
 
 # # Train test split training
 
@@ -233,23 +223,6 @@ pd.DataFrame(rf.feature_importances_, index = train.drop('outcome', axis=1).colu
 _, auc = train_model(LinearDiscriminantAnalysis(), X_train, y_train, X_test, y_test)
 print(auc)
 
-xg, auc = train_model(XGBClassifier(n_estimators=14, learning_rate=0.3), X_train, y_train, X_test, y_test)
-print(auc)
-
-pd.DataFrame(xg.feature_importances_, index = train.drop('outcome', axis=1).columns).sort_values(by=[0], ascending=False)
-
-# +
-my_model = XGBClassifier(n_estimators=15, learning_rate=0.3)
-
-my_model.fit(X_train, y_train,
-             early_stopping_rounds=5,
-            eval_set=[(X_test, y_test)])
-
-y_scores = my_model.predict_proba(X_test)
-metrics.roc_auc_score(y_test, y_scores[:,1])
-
-
-# -
 
 def zero_classifier(X):
     return np.zeros(len(X))
@@ -269,7 +242,6 @@ model_dict = {'lr': LogisticRegression(),
               'cart': DecisionTreeClassifier(), 
               'rf': RandomForestClassifier(),
               'ldr': LinearDiscriminantAnalysis(),
-              'xgb': XGBClassifier(n_estimators=14, learning_rate=0.3)
              }
 
 fprs = []
@@ -322,10 +294,104 @@ cvres = grid_search.cv_results_
 for mean_score, params in zip(cvres['mean_test_score'], cvres['params']):
     print(mean_score, params)
 
+# # XGboost
 
+from xgboost import XGBClassifier
 
+# +
+#early stopping strategy
+my_model = XGBClassifier(n_estimators=100, learning_rate=0.3)
 
+my_model.fit(X_train, y_train,
+             early_stopping_rounds=5,
+            eval_set=[(X_test, y_test)])
 
-test_df.info()
+y_scores = my_model.predict_proba(X_test)
+metrics.roc_auc_score(y_test, y_scores[:,1])
+# -
+
+# **Early stopping observation**
+# - Stop at about 15 iterations with learning rate = 0.3
+
+# +
+#use original train data
+X = train.drop('outcome', axis=1)
+y = train['outcome']
+
+split = StratifiedShuffleSplit(n_splits=1, test_size=0.3, random_state=42)
+
+for train_index, test_index in split.split(X, y):
+    strat_train_set = train.loc[train_index]
+    strat_test_set = train.loc[test_index]
+    
+X_train = strat_train_set.drop('outcome', axis=1)
+y_train = strat_train_set['outcome']
+X_test = strat_test_set.drop('outcome', axis=1)
+y_test = strat_test_set['outcome']
+
+# +
+cv_score = cross_val_score(XGBClassifier(n_estimators=15, learning_rate=0.3, random_state=42), X, y, scoring='roc_auc', cv=5)
+print(f"cv scores (auc):{cv_score}, \n mean:{cv_score.mean()}")
+
+xg, auc = train_model(XGBClassifier(n_estimators=15, learning_rate=0.3), X_train, y_train, X_test, y_test)
+print(f"\nsingle split auc: {auc}")
+# -
+
+pd.DataFrame(xg.feature_importances_, index = X.columns).sort_values(by=[0], ascending=False)
+
+# +
+#use train data with more features
+X = train_more_features.drop('outcome', axis=1)
+y = train_more_features['outcome']
+
+split = StratifiedShuffleSplit(n_splits=1, test_size=0.3, random_state=42)
+
+for train_index, test_index in split.split(X, y):
+    strat_train_set = train_more_features.loc[train_index]
+    strat_test_set = train_more_features.loc[test_index]
+    
+X_train = strat_train_set.drop('outcome', axis=1)
+y_train = strat_train_set['outcome']
+X_test = strat_test_set.drop('outcome', axis=1)
+y_test = strat_test_set['outcome']
+
+# +
+cv_score = cross_val_score(XGBClassifier(n_estimators=15, learning_rate=0.3, random_state=42), X, y, scoring='roc_auc', cv=5)
+print(f"cv scores (auc):{cv_score}, \n mean:{cv_score.mean()}")
+
+xg, auc = train_model(XGBClassifier(n_estimators=15, learning_rate=0.3), X_train, y_train, X_test, y_test)
+print(f"single split auc: {auc}")
+# -
+
+pd.DataFrame(xg.feature_importances_, index = X.columns).sort_values(by=[0], ascending=False)
+
+# +
+from sklearn.metrics import roc_curve
+
+model_dict = {'lr': LogisticRegression(),
+              'svm': SVC(probability=True), 
+              'cart': DecisionTreeClassifier(), 
+              'rf': RandomForestClassifier(),
+              'ldr': LinearDiscriminantAnalysis(),
+              'xgb': XGBClassifier(n_estimators=15, learning_rate=0.3)
+             }
+
+fprs = []
+tprs = []
+
+for i, model in enumerate(model_dict):
+    y_scores = cross_val_predict(model_dict[model], X_train, y_train, cv=3, method="predict_proba")[:, 1]
+    fpr, tpr, thresholds = roc_curve(y_train, y_scores)
+    fprs.append(fpr)
+    tprs.append(tpr)
+
+# +
+for i, model in enumerate(model_dict):
+    plot_roc_curve(fprs[i], tprs[i], model)
+    
+plt.legend()
+plt.show()
+
+# -
 
 
