@@ -20,6 +20,7 @@
 # 3. set up cv5
 # 4. get a baseline performance by using the data as it is with a few models (lr, svm, random forest, lda)
 # 5. feature engineering and re-train
+# 6. use XGboost
 
 # # Data import and cleaning
 
