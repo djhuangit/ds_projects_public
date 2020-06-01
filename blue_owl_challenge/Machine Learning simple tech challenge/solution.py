@@ -49,6 +49,20 @@ train_df['outcome'].value_counts()
 train_df.hist(figsize=(12,8))
 plt.show()
 
+# **Observations**
+# - age is evenly dsitributed
+# - cost of ad has flat right end
+# - launch location is binary/categorical, balanced
+# - income is normally distributed
+# - no. of driver, 1 or 2, balanced
+# - vehicles own: 1-3
+# - outcome: mostly negative, imbalance: stratified split
+# - prior tenure: unsure about the meaning
+#
+# **What can be done**
+# - Create new features to reflect the income level/financial stability (no. vehicles/driver)
+#
+
 # # Data preprocessing
 
 from sklearn.preprocessing import OneHotEncoder
